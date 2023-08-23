@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +36,11 @@ func (server *Server) Run(addr string) {
 func Run() {
 	var server = Server{}
 	var appConfig = AppConfig{}
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error on loading environment: %v", err)
+	}
 
 	appConfig.AppName = "GoToko Web"
 	appConfig.AppEnv = "development"
