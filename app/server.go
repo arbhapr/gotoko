@@ -14,8 +14,14 @@ type Server struct {
 	Router *mux.Router
 }
 
-func (server *Server) Initialize() {
-	fmt.Println("Welcome to GoToko")
+type AppConfig struct {
+	AppName string
+	AppEnv  string
+	AppPort string
+}
+
+func (server *Server) Initialize(appConfig AppConfig) {
+	fmt.Println("Welcome to " + appConfig.AppName)
 
 	server.Router = mux.NewRouter()
 	server.initializeRoutes()
@@ -28,6 +34,12 @@ func (server *Server) Run(addr string) {
 
 func Run() {
 	var server = Server{}
-	server.Initialize()
-	server.Run(":9000")
+	var appConfig = AppConfig{}
+
+	appConfig.AppName = "GoToko Web"
+	appConfig.AppEnv = "development"
+	appConfig.AppPort = "9999"
+
+	server.Initialize(appConfig)
+	server.Run(":" + appConfig.AppPort)
 }
