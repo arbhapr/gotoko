@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -15,14 +17,31 @@ type Server struct {
 	Router *mux.Router
 }
 
+type DBConfig struct {
+	DBHost     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBPort     string
+}
+
 type AppConfig struct {
 	AppName string
 	AppEnv  string
 	AppPort string
 }
 
-func (server *Server) Initialize(appConfig AppConfig) {
+func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 	fmt.Println("Welcome to " + appConfig.AppName)
+
+	var err error
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBHost, dbConfig.DBPort, dbConfig.DBName)
+	server.DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+	if err != nil {
+		panic("Connection failed on connecting to the database")
+	}
 
 	server.Router = mux.NewRouter()
 	server.initializeRoutes()
@@ -33,8 +52,17 @@ func (server *Server) Run(addr string) {
 	log.Fatal(http.ListenAndServe(addr, server.Router))
 }
 
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return fallback
+}
+
 func Run() {
 	var server = Server{}
+	var dbConfig = DBConfig{}
 	var appConfig = AppConfig{}
 
 	err := godotenv.Load()
@@ -42,10 +70,16 @@ func Run() {
 		log.Fatalf("Error on loading environment: %v", err)
 	}
 
-	appConfig.AppName = "GoToko Web"
-	appConfig.AppEnv = "development"
-	appConfig.AppPort = "9999"
+	appConfig.AppName = getEnv("APP_NAME", "GoToko Default")
+	appConfig.AppEnv = getEnv("APP_ENV", "development")
+	appConfig.AppPort = getEnv("APP_PORT", "9000")
 
-	server.Initialize(appConfig)
+	dbConfig.DBHost = getEnv("DB_HOST", "localhost")
+	dbConfig.DBPort = getEnv("DB_PORT", "3306")
+	dbConfig.DBUser = getEnv("DB_USER", "root")
+	dbConfig.DBName = getEnv("DB_NAME", "gotoko")
+	dbConfig.DBPassword = getEnv("DB_PASSWORD", "")
+
+	server.Initialize(appConfig, dbConfig)
 	server.Run(":" + appConfig.AppPort)
 }
