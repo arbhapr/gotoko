@@ -1,6 +1,7 @@
 package app
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/arbhapr/gotoko/database/seeders"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"github.com/urfave/cli"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -36,9 +38,7 @@ type AppConfig struct {
 func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 	fmt.Println("Welcome to " + appConfig.AppName)
 
-	server.initializeDB(dbConfig)
 	server.initializeRoutes()
-	seeders.DBSeed(server.DB)
 }
 
 func (server *Server) Run(addr string) {
@@ -55,9 +55,11 @@ func (server *Server) initializeDB(dbConfig DBConfig) {
 	if err != nil {
 		panic("Connection failed on connecting to the database")
 	}
+}
 
+func (server *Server) dbMigrate() {
 	for _, model := range RegisterModels() {
-		err = server.DB.Debug().AutoMigrate(model.Model)
+		err := server.DB.Debug().AutoMigrate(model.Model)
 
 		if err != nil {
 			log.Fatal(err)
@@ -65,6 +67,37 @@ func (server *Server) initializeDB(dbConfig DBConfig) {
 	}
 
 	fmt.Println("Database migrated succesfully.")
+}
+
+func (server *Server) initCommands(config AppConfig, dbConfig DBConfig) {
+	server.initializeDB(dbConfig)
+
+	cmdApp := cli.NewApp()
+	cmdApp.Commands = []cli.Command{
+		{
+			Name: "db:migrate",
+			Action: func(c *cli.Context) error {
+				server.dbMigrate()
+				return nil
+			},
+		},
+		{
+			Name: "db:seed",
+			Action: func(c *cli.Context) error {
+				err := seeders.DBSeed(server.DB)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				return nil
+			},
+		},
+	}
+
+	err := cmdApp.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func getEnv(key, fallback string) string {
@@ -95,6 +128,13 @@ func Run() {
 	dbConfig.DBName = getEnv("DB_NAME", "gotoko")
 	dbConfig.DBPassword = getEnv("DB_PASSWORD", "")
 
-	server.Initialize(appConfig, dbConfig)
-	server.Run(":" + appConfig.AppPort)
+	flag.Parse()
+	arg := flag.Arg(0)
+	if arg != "" {
+		server.initCommands(appConfig, dbConfig)
+	} else {
+		server.Initialize(appConfig, dbConfig)
+		server.Run(":" + appConfig.AppPort)
+	}
+
 }
