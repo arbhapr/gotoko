@@ -23,6 +23,7 @@ type DBConfig struct {
 	DBPassword string
 	DBName     string
 	DBPort     string
+	DBDriver   string
 }
 
 type AppConfig struct {
@@ -34,6 +35,16 @@ type AppConfig struct {
 func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 	fmt.Println("Welcome to " + appConfig.AppName)
 
+	server.initializeDB(dbConfig)
+	server.initializeRoutes()
+}
+
+func (server *Server) Run(addr string) {
+	fmt.Printf("Listening to port %s", addr)
+	log.Fatal(http.ListenAndServe(addr, server.Router))
+}
+
+func (server *Server) initializeDB(dbConfig DBConfig) {
 	var err error
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBHost, dbConfig.DBPort, dbConfig.DBName)
@@ -43,13 +54,15 @@ func (server *Server) Initialize(appConfig AppConfig, dbConfig DBConfig) {
 		panic("Connection failed on connecting to the database")
 	}
 
-	server.Router = mux.NewRouter()
-	server.initializeRoutes()
-}
+	for _, model := range RegisterModels() {
+		err = server.DB.Debug().AutoMigrate(model.Model)
 
-func (server *Server) Run(addr string) {
-	fmt.Printf("Listening to port %s", addr)
-	log.Fatal(http.ListenAndServe(addr, server.Router))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Println("Database migrated succesfully.")
 }
 
 func getEnv(key, fallback string) string {
